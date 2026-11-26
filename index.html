@@ -211,6 +211,7 @@ select option{background:var(--bg-card)}
         <button class="btn-secondary btn-sm" style="margin-top:4px" onclick="addGameCard()">+ Add game</button>
         <div style="margin-top:1rem;display:flex;gap:8px;align-items:center">
           <button class="btn-primary" onclick="saveWeek()">Save week</button>
+          <button class="btn-danger" onclick="deleteWeek()">Delete week</button>
           <span id="admin-msg" style="font-size:13px"></span>
         </div>
       </div>
@@ -571,6 +572,32 @@ async function saveWeek(){
     document.getElementById('edit-week-select').value='';
     await loadAll();
   }else{msg.style.color='var(--wrong)';msg.textContent='Error: '+res._msg.substring(0,60);}
+}
+
+async function deleteWeek(){
+  const wn=document.getElementById('admin-week').value.trim();
+  const msg=document.getElementById('admin-msg');
+  if(!wn){msg.style.color='var(--wrong)';msg.textContent='No week selected.';return;}
+  if(!state.weeks[wn]){msg.style.color='var(--wrong)';msg.textContent='That week does not exist.';return;}
+  const label=state.weeks[wn].label||'Week '+wn;
+  if(!confirm(`Delete ${label}? This will also delete all picks and results for this week.`))return;
+  msg.style.color='var(--text-muted)';msg.textContent='Deleting...';
+  // Delete picks, results, then the week
+  await db('picks','DELETE',null,`?week_number=eq.${wn}`);
+  await db('results','DELETE',null,`?week_number=eq.${wn}`);
+  const res=await db('weeks','DELETE',null,`?week_number=eq.${wn}`);
+  if(!res._error){
+    msg.style.color='var(--green)';msg.textContent='Week deleted!';
+    setTimeout(()=>msg.textContent='',2500);
+    document.getElementById('admin-week').value='';
+    document.getElementById('admin-week-label').value='';
+    document.getElementById('admin-games').querySelectorAll('.game-input-card').forEach(c=>c.remove());
+    document.getElementById('setup-week-title').textContent='Set up a week';
+    document.getElementById('edit-week-select').value='';
+    gameCount=0;
+    for(let i=0;i<5;i++)addGameCard();
+    await loadAll();
+  }else{msg.style.color='var(--wrong)';msg.textContent='Error deleting: '+res._msg.substring(0,60);}
 }
 
 function renderResultsForm(){
