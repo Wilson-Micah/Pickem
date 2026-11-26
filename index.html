@@ -284,6 +284,18 @@ async function db(table, method='GET', body=null, query=''){
   }catch(e){console.error('DB fetch failed:',e);return{_error:true,_msg:e.message};}
 }
 
+// Supabase caps each response at 1000 rows, so page through large tables.
+// `query` must include a stable order so pages don't overlap or skip rows.
+async function dbAll(table, query, pageSize=1000){
+  const all=[];
+  for(let offset=0;;offset+=pageSize){
+    const page=await db(table,'GET',null,`${query}&limit=${pageSize}&offset=${offset}`);
+    if(page._error)return page;
+    all.push(...page);
+    if(page.length<pageSize)return all;
+  }
+}
+
 let state={players:[],playerData:{},weeks:{},picks:{},results:{}};
 let adminUnlocked=sessionStorage.getItem('pickem_admin')==='1';
 let verifiedPlayer=localStorage.getItem('pickem_player')||'';
@@ -295,8 +307,8 @@ async function loadAll(){
   const [players,weeks,picks,results,settings]=await Promise.all([
     db('players','GET',null,'?select=name,pin&order=name'),
     db('weeks','GET',null,'?select=*&order=week_number'),
-    db('picks','GET',null,'?select=*'),
-    db('results','GET',null,'?select=*'),
+    dbAll('picks','?select=*&order=week_number,player_name,game_index'),
+    dbAll('results','?select=*&order=week_number,game_index'),
     db('settings','GET',null,'?key=eq.active_week&select=value')
   ]);
   const safeArr=v=>Array.isArray(v)?v:[];
